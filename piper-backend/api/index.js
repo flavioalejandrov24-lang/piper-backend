@@ -13,7 +13,11 @@ const app = express();
 // ================================================
 
 // Middleware
-app.use(cors()); // Permite llamadas desde cualquier origen
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '10mb' })); // Para recibir imágenes en base64
 
 // Supabase
@@ -341,5 +345,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Backend corriendo en puerto ${PORT}`);
 });
+
 
 module.exports = app; // Para Vercel
