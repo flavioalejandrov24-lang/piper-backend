@@ -14,8 +14,9 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: '*',
+  origin: ['https://flavioalejandrov24-lang.github.io', 'https://compualextech24.github.io'],
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' })); // Para recibir imágenes en base64
@@ -348,3 +349,4 @@ app.listen(PORT, () => {
 
 
 module.exports = app; // Para Vercel
+
