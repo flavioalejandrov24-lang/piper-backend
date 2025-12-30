@@ -38,9 +38,9 @@ const API_KEYS = {
 // ENDPOINT: Health Check
 // ================================================
 app.get('/', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'Piper Backend funcionando correctamente' 
+  res.json({
+    status: 'ok',
+    message: 'Piper Backend funcionando correctamente'
   });
 });
 
@@ -55,7 +55,7 @@ app.get('/api/models', async (req, res) => {
       .from('ia_models')
       .select('id, name, url, is_custom')
       .order('created_at', { ascending: true });
-    
+
     if (error) throw error;
     res.json({ success: true, models: data });
   } catch (err) {
@@ -67,11 +67,11 @@ app.get('/api/models', async (req, res) => {
 app.post('/api/models', async (req, res) => {
   try {
     const { name, url, api_key } = req.body;
-    
+
     if (!name || !url || !api_key) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Faltan campos requeridos' 
+      return res.status(400).json({
+        success: false,
+        error: 'Faltan campos requeridos'
       });
     }
 
@@ -80,7 +80,7 @@ app.post('/api/models', async (req, res) => {
       .insert([{ name, url, api_key, is_custom: true }])
       .select()
       .single();
-    
+
     if (error) throw error;
     res.json({ success: true, model: data });
   } catch (err) {
@@ -92,13 +92,13 @@ app.post('/api/models', async (req, res) => {
 app.delete('/api/models/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const { error } = await supabase
       .from('ia_models')
       .delete()
       .eq('id', id)
       .eq('is_custom', true); // Solo permitir eliminar modelos custom
-    
+
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
@@ -117,7 +117,7 @@ app.get('/api/personajes', async (req, res) => {
       .from('personajes')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     res.json({ success: true, personajes: data });
   } catch (err) {
@@ -129,11 +129,11 @@ app.get('/api/personajes', async (req, res) => {
 app.post('/api/personajes', async (req, res) => {
   try {
     const { name, persona, model_id, model_name, voice, rate, pitch, image_base64 } = req.body;
-    
+
     if (!name || !voice) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Nombre y voz son requeridos' 
+      return res.status(400).json({
+        success: false,
+        error: 'Nombre y voz son requeridos'
       });
     }
 
@@ -144,7 +144,7 @@ app.post('/api/personajes', async (req, res) => {
       const base64Data = image_base64.split(',')[1];
       const buffer = Buffer.from(base64Data, 'base64');
       const fileName = `${Date.now()}_${name.replace(/\s/g, '_')}.jpg`;
-      
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('personajes-avatars')
         .upload(fileName, buffer, {
@@ -158,7 +158,7 @@ app.post('/api/personajes', async (req, res) => {
       const { data: urlData } = supabase.storage
         .from('personajes-avatars')
         .getPublicUrl(fileName);
-      
+
       image_url = urlData.publicUrl;
     }
 
@@ -177,7 +177,7 @@ app.post('/api/personajes', async (req, res) => {
       }])
       .select()
       .single();
-    
+
     if (error) throw error;
     res.json({ success: true, personaje: data });
   } catch (err) {
@@ -189,7 +189,7 @@ app.post('/api/personajes', async (req, res) => {
 app.delete('/api/personajes/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Obtener info del personaje para eliminar su imagen
     const { data: personaje } = await supabase
       .from('personajes')
@@ -210,7 +210,7 @@ app.delete('/api/personajes/:id', async (req, res) => {
       .from('personajes')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
@@ -226,9 +226,9 @@ app.post('/api/chat', async (req, res) => {
     const { model_id, model_name, message, system_prompt } = req.body;
 
     if (!message) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Mensaje requerido' 
+      return res.status(400).json({
+        success: false,
+        error: 'Mensaje requerido'
       });
     }
 
@@ -242,7 +242,7 @@ app.post('/api/chat', async (req, res) => {
         .select('*')
         .eq('id', model_id)
         .single();
-      
+
       modelConfig = data;
       apiKey = data.is_custom ? data.api_key : null;
     }
@@ -269,7 +269,7 @@ app.post('/api/chat', async (req, res) => {
       const data = await response.json();
       resultText = data.choices?.[0]?.message?.content || 'Error en DeepSeek';
     }
-    
+
     // ==== GROQ ====
     else if (model_name === 'groq' || (modelConfig?.name.includes('Groq'))) {
       response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -290,7 +290,7 @@ app.post('/api/chat', async (req, res) => {
       const data = await response.json();
       resultText = data.choices?.[0]?.message?.content || 'Error en Groq';
     }
-    
+
     // ==== GEMINI ====
     else if (model_name === 'gemini' || (modelConfig?.name.includes('Gemini'))) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey || API_KEYS.gemini}`;
@@ -304,7 +304,7 @@ app.post('/api/chat', async (req, res) => {
       const data = await response.json();
       resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Error en Gemini';
     }
-    
+
     // ==== MODELO PERSONALIZADO ====
     else if (modelConfig?.is_custom) {
       response = await fetch(modelConfig.url, {
@@ -324,11 +324,11 @@ app.post('/api/chat', async (req, res) => {
       const data = await response.json();
       resultText = data.choices?.[0]?.message?.content || 'Error en modelo personalizado';
     }
-    
+
     else {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Modelo no reconocido' 
+      return res.status(400).json({
+        success: false,
+        error: 'Modelo no reconocido'
       });
     }
 
@@ -340,12 +340,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // ================================================
-// INICIAR SERVIDOR
+// EXPORTAR PARA VERCEL
 // ================================================
 
-
-module.exports = app; // Para Vercel
-
-
-
-
+module.exports = app;
