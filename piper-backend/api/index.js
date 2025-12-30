@@ -231,123 +231,274 @@ app.delete('/api/personajes/:id', async (req, res) => {
 });
 
 // ================================================
-// CHAT: Enviar mensaje a la IA
+// SISTEMA UNIVERSAL DE DETECCIÓN DE API
+// ================================================
+
+/**
+ * Detecta automáticamente el tipo de API basándose en la URL
+ */
+function detectarTipoAPI(url) {
+  if (!url) return 'openai';
+  
+  const urlLower = url.toLowerCase();
+  
+  if (urlLower.includes('generativelanguage.googleapis.com')) return 'gemini';
+  if (urlLower.includes('api.anthropic.com')) return 'anthropic';
+  if (urlLower.includes('api.groq.com')) return 'groq';
+  if (urlLower.includes('openrouter.ai')) return 'openrouter';
+  
+  // Por defecto, asumir formato OpenAI (compatible con la mayoría)
+  return 'openai';
+}
+
+/**
+ * Formatea la petición según el tipo de API detectado
+ */
+async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
+  let response, data, resultText;
+
+  try {
+    switch (tipoAPI) {
+      // ========== GEMINI ==========
+      case 'gemini':
+        // Extraer nombre del modelo de la URL
+        let geminiModel = 'gemini-2.0-flash-exp';
+        const matchModel = url.match(/models\/([^:?]+)/);
+        if (matchModel) geminiModel = matchModel[1];
+        
+        // Construir URL con API key
+        const geminiUrl = url.includes('?key=') ? url : `${url}?key=${apiKey}`;
+        
+        response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: systemPrompt 
+                  ? `${systemPrompt}\n\nUsuario: ${message}` 
+                  : message
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 1000
+            }
+          })
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error Gemini:', data);
+          throw new Error(data.error?.message || 'Error en Gemini API');
+        }
+        
+        resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta';
+        break;
+
+      // ========== ANTHROPIC (CLAUDE) ==========
+      case 'anthropic':
+        const claudeMessages = [];
+        if (systemPrompt) {
+          claudeMessages.push({ role: 'user', content: systemPrompt });
+          claudeMessages.push({ role: 'assistant', content: 'Entendido.' });
+        }
+        claudeMessages.push({ role: 'user', content: message });
+
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-sonnet-20240229',
+            messages: claudeMessages,
+            max_tokens: 1000
+          })
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error Claude:', data);
+          throw new Error(data.error?.message || 'Error en Claude API');
+        }
+        
+        resultText = data.content?.[0]?.text || 'Sin respuesta';
+        break;
+
+      // ========== GROQ ==========
+      case 'groq':
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemPrompt || 'Eres un asistente útil' },
+              { role: 'user', content: message }
+            ],
+            temperature: 0.7,
+            max_tokens: 1000
+          })
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error Groq:', data);
+          throw new Error(data.error?.message || 'Error en Groq API');
+        }
+        
+        resultText = data.choices?.[0]?.message?.content || 'Sin respuesta';
+        break;
+
+      // ========== OPENROUTER ==========
+      case 'openrouter':
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'deepseek/deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt || 'Eres un asistente útil' },
+              { role: 'user', content: message }
+            ]
+          })
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error OpenRouter:', data);
+          throw new Error(data.error?.message || 'Error en OpenRouter API');
+        }
+        
+        resultText = data.choices?.[0]?.message?.content || 'Sin respuesta';
+        break;
+
+      // ========== OPENAI Y COMPATIBLES (DEFAULT) ==========
+      default:
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: systemPrompt || 'Eres un asistente útil' },
+              { role: 'user', content: message }
+            ],
+            temperature: 0.7,
+            max_tokens: 1000
+          })
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error API:', data);
+          throw new Error(data.error?.message || 'Error en API');
+        }
+        
+        resultText = data.choices?.[0]?.message?.content || 'Sin respuesta';
+        break;
+    }
+
+    return resultText;
+
+  } catch (error) {
+    console.error(`Error en llamarAPI (${tipoAPI}):`, error);
+    throw error;
+  }
+}
+
+// ================================================
+// CHAT: Enviar mensaje a la IA (UNIVERSAL)
 // ================================================
 app.post('/api/chat', async (req, res) => {
   try {
-    const { model_id, model_name, message, system_prompt } = req.body;
+    const { model_id, message, system_prompt } = req.body;
 
-    if (!message) {
+    if (!message || message.trim() === '') {
       return res.status(400).json({
         success: false,
         error: 'Mensaje requerido'
       });
     }
 
-    let modelConfig = null;
-    let apiKey = null;
-
-    // Determinar si es modelo predeterminado o personalizado
-    if (model_id) {
-      const { data } = await supabase
-        .from('ia_models')
-        .select('*')
-        .eq('id', model_id)
-        .single();
-
-      modelConfig = data;
-      apiKey = data.is_custom ? data.api_key : null;
-    }
-
-    let response;
-    let resultText = '';
-
-    // ==== DEEPSEEK (OpenRouter) ====
-    if (model_name === 'deepseek' || (modelConfig?.name.includes('DeepSeek'))) {
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey || API_KEYS.openrouter}`
-        },
-        body: JSON.stringify({
-          model: 'deepseek/deepseek-chat',
-          messages: [
-            { role: 'system', content: system_prompt || 'Eres un asistente útil' },
-            { role: 'user', content: message }
-          ]
-        })
-      });
-      const data = await response.json();
-      resultText = data.choices?.[0]?.message?.content || 'Error en DeepSeek';
-    }
-
-    // ==== GROQ ====
-    else if (model_name === 'groq' || (modelConfig?.name.includes('Groq'))) {
-      response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey || API_KEYS.groq}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: system_prompt || 'Eres un asistente útil' },
-            { role: 'user', content: message }
-          ],
-          max_tokens: 150
-        })
-      });
-      const data = await response.json();
-      resultText = data.choices?.[0]?.message?.content || 'Error en Groq';
-    }
-
-    // ==== GEMINI ====
-    else if (model_name === 'gemini' || (modelConfig?.name.includes('Gemini'))) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey || API_KEYS.gemini}`;
-      response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${system_prompt || ''} Usuario: ${message}` }] }]
-        })
-      });
-      const data = await response.json();
-      resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Error en Gemini';
-    }
-
-    // ==== MODELO PERSONALIZADO ====
-    else if (modelConfig?.is_custom) {
-      response = await fetch(modelConfig.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${modelConfig.api_key}`
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: system_prompt || 'Eres un asistente útil' },
-            { role: 'user', content: message }
-          ],
-          max_tokens: 150
-        })
-      });
-      const data = await response.json();
-      resultText = data.choices?.[0]?.message?.content || 'Error en modelo personalizado';
-    }
-
-    else {
+    if (!model_id) {
       return res.status(400).json({
         success: false,
-        error: 'Modelo no reconocido'
+        error: 'model_id requerido'
       });
     }
+
+    // Obtener configuración del modelo desde Supabase
+    const { data: modelConfig, error: dbError } = await supabase
+      .from('ia_models')
+      .select('*')
+      .eq('id', model_id)
+      .single();
+
+    if (dbError || !modelConfig) {
+      console.error('Error buscando modelo:', dbError);
+      return res.status(404).json({
+        success: false,
+        error: 'Modelo no encontrado'
+      });
+    }
+
+    console.log('📡 Usando modelo:', modelConfig.name);
+
+    // Obtener API Key (custom o de variables de entorno)
+    let apiKey = modelConfig.api_key;
+    
+    // Si no tiene API key custom, buscar en variables de entorno
+    if (!apiKey || apiKey.trim() === '') {
+      const tipoAPI = detectarTipoAPI(modelConfig.url);
+      apiKey = API_KEYS[tipoAPI] || API_KEYS.openrouter;
+      console.log('🔑 Usando API key de entorno para:', tipoAPI);
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({
+        success: false,
+        error: 'API Key no configurada para este modelo'
+      });
+    }
+
+    // Detectar tipo de API automáticamente
+    const tipoAPI = detectarTipoAPI(modelConfig.url);
+    console.log('🤖 Tipo de API detectado:', tipoAPI);
+
+    // Llamar a la API correspondiente
+    const resultText = await llamarAPI(
+      tipoAPI,
+      modelConfig.url,
+      apiKey,
+      message,
+      system_prompt
+    );
 
     res.json({ success: true, response: resultText });
 
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('❌ Error en /api/chat:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Error interno del servidor'
+    });
   }
 });
 
@@ -356,4 +507,3 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 
 module.exports = app;
-
