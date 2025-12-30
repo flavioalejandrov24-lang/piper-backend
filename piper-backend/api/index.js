@@ -88,19 +88,31 @@ app.post('/api/models', async (req, res) => {
   }
 });
 
-// DELETE: Eliminar modelo personalizado
+// DELETE: Eliminar modelo (permite eliminar CUALQUIER modelo)
 app.delete('/api/models/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Verificar que no sea el último modelo
+    const { data: allModels } = await supabase
+      .from('ia_models')
+      .select('id');
+
+    if (allModels && allModels.length <= 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'No puedes eliminar el último modelo'
+      });
+    }
+
+    // Eliminar el modelo (sin restricción de is_custom)
     const { error } = await supabase
       .from('ia_models')
       .delete()
-      .eq('id', id)
-      .eq('is_custom', true); // Solo permitir eliminar modelos custom
+      .eq('id', id);
 
     if (error) throw error;
-    res.json({ success: true });
+    res.json({ success: true, message: 'Modelo eliminado correctamente' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -344,3 +356,4 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 
 module.exports = app;
+
