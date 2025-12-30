@@ -294,7 +294,7 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
       // ========== GEMINI ==========
       case 'gemini':
         // Extraer nombre del modelo de la URL
-        let geminiModel = 'gemini-2.0-flash-exp';
+        let geminiModel = 'gemini-2.5-flash';
         const matchModel = url.match(/models\/([^:?]+)/);
         if (matchModel) geminiModel = matchModel[1];
         
@@ -539,3 +539,4 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 
 module.exports = app;
+
