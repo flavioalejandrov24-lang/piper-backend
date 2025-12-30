@@ -342,13 +342,10 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 // INICIAR SERVIDOR
 // ================================================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Backend corriendo en puerto ${PORT}`);
-});
 
 
 module.exports = app; // Para Vercel
+
 
 
 
