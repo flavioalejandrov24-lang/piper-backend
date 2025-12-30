@@ -234,6 +234,33 @@ app.delete('/api/personajes/:id', async (req, res) => {
 // SISTEMA UNIVERSAL DE DETECCIÓN DE API
 // ================================================
 
+// ================================================
+// 🌍 INSTRUCCIONES GLOBALES PARA TODAS LAS IAS
+// ================================================
+// AQUÍ PUEDES AGREGAR O MODIFICAR REGLAS QUE SE APLICARÁN A TODAS LAS IAS
+// Estas instrucciones se combinan automáticamente con la personalidad de cada personaje
+const INSTRUCCIONES_GLOBALES = `
+REGLAS OBLIGATORIAS PARA TODAS LAS RESPUESTAS:
+
+1. FORMATO DE ESCRITURA:
+   - NO uses asteriscos (*) para enfatizar texto
+   - NO uses emojis en tus respuestas
+   - Escribe en texto plano y natural
+   - Usa mayúsculas solo cuando sea gramaticalmente correcto
+
+2. ESTILO:
+   - Respuestas cortas a menos que el usuario te pida que uses respuestas mas largas
+ 
+3. IDIOMA:
+   - SIEMPRE responde en español
+   - Usa acentos y puntuación correctamente
+
+IMPORTANTE: Estas reglas son obligatorias y se aplican ANTES de tu personalidad específica.
+`;
+// ================================================
+// FIN DE INSTRUCCIONES GLOBALES
+// ================================================
+
 /**
  * Detecta automáticamente el tipo de API basándose en la URL
  */
@@ -255,6 +282,11 @@ function detectarTipoAPI(url) {
  * Formatea la petición según el tipo de API detectado
  */
 async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
+  // ✅ COMBINAR INSTRUCCIONES GLOBALES CON PERSONALIDAD DEL PERSONAJE
+  const systemPromptFinal = systemPrompt 
+    ? `${INSTRUCCIONES_GLOBALES}\n\n${systemPrompt}`
+    : INSTRUCCIONES_GLOBALES;
+
   let response, data, resultText;
 
   try {
@@ -275,8 +307,8 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: systemPrompt 
-                  ? `${systemPrompt}\n\nUsuario: ${message}` 
+                text: systemPromptFinal 
+                  ? `${systemPromptFinal}\n\nUsuario: ${message}` 
                   : message
               }]
             }],
@@ -300,8 +332,8 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
       // ========== ANTHROPIC (CLAUDE) ==========
       case 'anthropic':
         const claudeMessages = [];
-        if (systemPrompt) {
-          claudeMessages.push({ role: 'user', content: systemPrompt });
+        if (systemPromptFinal) {
+          claudeMessages.push({ role: 'user', content: systemPromptFinal });
           claudeMessages.push({ role: 'assistant', content: 'Entendido.' });
         }
         claudeMessages.push({ role: 'user', content: message });
@@ -341,7 +373,7 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
           body: JSON.stringify({
             model: 'llama-3.3-70b-versatile',
             messages: [
-              { role: 'system', content: systemPrompt || 'Eres un asistente útil' },
+              { role: 'system', content: systemPromptFinal || 'Eres un asistente útil' },
               { role: 'user', content: message }
             ],
             temperature: 0.7,
@@ -370,7 +402,7 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
           body: JSON.stringify({
             model: 'deepseek/deepseek-chat',
             messages: [
-              { role: 'system', content: systemPrompt || 'Eres un asistente útil' },
+              { role: 'system', content: systemPromptFinal || 'Eres un asistente útil' },
               { role: 'user', content: message }
             ]
           })
@@ -396,7 +428,7 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
           },
           body: JSON.stringify({
             messages: [
-              { role: 'system', content: systemPrompt || 'Eres un asistente útil' },
+              { role: 'system', content: systemPromptFinal || 'Eres un asistente útil' },
               { role: 'user', content: message }
             ],
             temperature: 0.7,
