@@ -1,3 +1,4 @@
+
 // ================================================
 // BACKEND SEGURO PARA PIPER IA APP
 // ================================================
@@ -237,8 +238,6 @@ app.delete('/api/personajes/:id', async (req, res) => {
 // ================================================
 // 🌍 INSTRUCCIONES GLOBALES PARA TODAS LAS IAS
 // ================================================
-// AQUÍ PUEDES AGREGAR O MODIFICAR REGLAS QUE SE APLICARÁN A TODAS LAS IAS
-// Estas instrucciones se combinan automáticamente con la personalidad de cada personaje
 const INSTRUCCIONES_GLOBALES = `
 REGLAS OBLIGATORIAS PARA TODAS LAS RESPUESTAS:
 
@@ -254,13 +253,9 @@ REGLAS OBLIGATORIAS PARA TODAS LAS RESPUESTAS:
 3. IDIOMA:
    - SIEMPRE responde en español
    - Usa acentos y puntuación correctamente
-   - No uses astericos por ningún motivo al escribir 
 
 IMPORTANTE: Estas reglas son obligatorias y se aplican ANTES de tu personalidad específica.
 `;
-// ================================================
-// FIN DE INSTRUCCIONES GLOBALES
-// ================================================
 
 /**
  * Detecta automáticamente el tipo de API basándose en la URL
@@ -274,8 +269,8 @@ function detectarTipoAPI(url) {
   if (urlLower.includes('api.anthropic.com')) return 'anthropic';
   if (urlLower.includes('api.groq.com')) return 'groq';
   if (urlLower.includes('openrouter.ai')) return 'openrouter';
+  if (urlLower.includes('mi-gemma-servidor.hf.space')) return 'gemma-hf';
   
-  // Por defecto, asumir formato OpenAI (compatible con la mayoría)
   return 'openai';
 }
 
@@ -283,7 +278,6 @@ function detectarTipoAPI(url) {
  * Formatea la petición según el tipo de API detectado
  */
 async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
-  // ✅ COMBINAR INSTRUCCIONES GLOBALES CON PERSONALIDAD DEL PERSONAJE
   const systemPromptFinal = systemPrompt 
     ? `${INSTRUCCIONES_GLOBALES}\n\n${systemPrompt}`
     : INSTRUCCIONES_GLOBALES;
@@ -294,12 +288,10 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
     switch (tipoAPI) {
       // ========== GEMINI ==========
       case 'gemini':
-        // Extraer nombre del modelo de la URL
-        let geminiModel = 'gemini-2.5-flash';
+        let geminiModel = 'gemini-2.0-flash-exp';
         const matchModel = url.match(/models\/([^:?]+)/);
         if (matchModel) geminiModel = matchModel[1];
         
-        // Construir URL con API key
         const geminiUrl = url.includes('?key=') ? url : `${url}?key=${apiKey}`;
         
         response = await fetch(geminiUrl, {
@@ -417,6 +409,36 @@ async function llamarAPI(tipoAPI, url, apiKey, message, systemPrompt) {
         }
         
         resultText = data.choices?.[0]?.message?.content || 'Sin respuesta';
+        break;
+
+      // ========== GEMMA EN HUGGING FACE ==========
+      case 'gemma-hf':
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: systemPromptFinal 
+              ? `${systemPromptFinal}\n\nUsuario: ${message}\n\nAsistente:` 
+              : `Usuario: ${message}\n\nAsistente:`,
+            max_length: 1000,
+            temperature: 0.7,
+            top_p: 0.9
+          })
+        });
+        
+        data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error Gemma HF:', data);
+          throw new Error(data.error || 'Error en servidor Gemma');
+        }
+        
+        resultText = data.response || data.generated_text || data.text || 'Sin respuesta';
+        
+        // Limpiar respuesta si viene con el prompt
+        if (resultText.includes('Asistente:')) {
+          resultText = resultText.split('Asistente:').pop().trim();
+        }
         break;
 
       // ========== OPENAI Y COMPATIBLES (DEFAULT) ==========
@@ -540,5 +562,3 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 
 module.exports = app;
-
-
