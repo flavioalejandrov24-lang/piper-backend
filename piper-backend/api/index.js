@@ -254,6 +254,7 @@ REGLAS OBLIGATORIAS PARA TODAS LAS RESPUESTAS:
 3. IDIOMA:
    - SIEMPRE responde en español
    - Usa acentos y puntuación correctamente
+   - No uses astericos por ningún motivo al escribir 
 
 IMPORTANTE: Estas reglas son obligatorias y se aplican ANTES de tu personalidad específica.
 `;
@@ -539,4 +540,5 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 
 module.exports = app;
+
 
