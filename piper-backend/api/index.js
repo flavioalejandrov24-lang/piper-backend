@@ -243,6 +243,7 @@ REGLAS OBLIGATORIAS PARA TODAS LAS RESPUESTAS:
 
 1. FORMATO DE ESCRITURA:
    - NO uses asteriscos (*) para enfatizar texto
+   - No uses doble asterico (**), triple asterico (***), nada de astericos(*)
    - NO uses emojis en tus respuestas
    - Escribe en texto plano y natural
    - Usa mayúsculas solo cuando sea gramaticalmente correcto
@@ -562,3 +563,4 @@ app.post('/api/chat', async (req, res) => {
 // ================================================
 
 module.exports = app;
+
